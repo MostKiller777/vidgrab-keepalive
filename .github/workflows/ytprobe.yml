@@ -1,0 +1,47 @@
+name: ytprobe
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: video url
+        required: false
+        default: https://youtu.be/fM5gIOo_WNY
+  repository_dispatch:
+    types: [ytprobe]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: whoami
+        run: |
+          echo "runner ip:"
+          curl -s --max-time 20 https://ipinfo.io/json || true
+          echo
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet --upgrade "yt-dlp"
+          python -m pip show yt-dlp | head -2
+      - name: probe formats
+        run: |
+          URL="${{ github.event.inputs.url }}"
+          [ -z "$URL" ] && URL="https://youtu.be/fM5gIOo_WNY"
+          echo "target: $URL"
+          if yt-dlp --no-warnings --no-progress -F "$URL"; then
+            echo "PROBE_RESULT=OK"
+          else
+            echo "PROBE_RESULT=FAIL"
+          fi
+      - name: real download
+        run: |
+          URL="${{ github.event.inputs.url }}"
+          [ -z "$URL" ] && URL="https://youtu.be/fM5gIOo_WNY"
+          yt-dlp --no-warnings --no-progress -f "bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720]/b" -o "out.%(ext)s" "$URL"
+          ls -la out.* || true
+          echo "DOWNLOAD_RESULT=$(ls -la out.* | head -1)"
